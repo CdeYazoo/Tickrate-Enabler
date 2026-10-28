@@ -88,4 +88,12 @@ inline int mov_src_operand_offset(BYTE * instr)
 	}
 }
 
+// ADDSD xmm, qword ptr [abs32]  =  F2 0F 58 /r  with ModRM mod=00, rm=101 (disp32 only)
+#define ADDSD_ABS32_INSTR_LEN 8
+#define ADDSD_ABS32_OPERAND_OFFSET 4
+inline bool is_addsd_abs32(const BYTE * instr)
+{
+	return instr[0] == 0xF2 && instr[1] == 0x0F && instr[2] == 0x58 && (instr[3] & 0xC7) == 0x05;
+}
+
 #endif

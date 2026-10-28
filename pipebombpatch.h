@@ -45,11 +45,11 @@ public:
 	~PipeBombFrameTimePatch();
 	void Patch();
 	void Unpatch();
-	static int FrameTimeNumCounter;
 private:
 	void InitializeBinPatches(IServerGameDLL * gamedll);
 	BYTE * FindSignature(void* gamedll, const char* sig, int len = 0);
-	void FrameTimeOverride(BYTE* pFunction);
+	void FrameTimeOverride(BYTE* pFunction, const char * funcName, int readIndex);
 	PatchManager m_patches;
+	void * m_pGlobalsVarAddr; // address of the gpGlobals variable seen at the first patch site
 };
 #endif 

@@ -42,6 +42,7 @@
 #include "patchexceptions.h"
 
 #include "pipebombpatch.h"
+#include "sentrypatch.h"
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
@@ -74,17 +75,25 @@ int g_PLID = 0;
 
 SH_DECL_HOOK0(IServerGameDLL, GetTickInterval, const, 0, float);
 
-float GetTickInterval()
+float GetConfiguredTickInterval(bool verbose)
 {
 	float tickinterval = (1.0f / 66.0f);
 
 	if ( CommandLine()->CheckParm( "-tickrate" ) )
 	{
 		float tickrate = CommandLine()->ParmValue( "-tickrate", 0 );
-		Msg("Tickrate_Enabler: Read TickRate %f\n", tickrate);
+		if ( verbose )
+			Msg("Tickrate_Enabler: Read TickRate %f\n", tickrate);
 		if ( tickrate > 10 )
 			tickinterval = 1.0f / tickrate;
 	}
+
+	return tickinterval;
+}
+
+float GetTickInterval()
+{
+	float tickinterval = GetConfiguredTickInterval(true);
 
 	RETURN_META_VALUE(MRES_SUPERCEDE, tickinterval );
 }
@@ -121,11 +130,13 @@ bool TF2TickRate::Load(	CreateInterfaceFn interfaceFactory, CreateInterfaceFn ga
 	try
 	{
 		m_patchManager.Register(new PipeBombFrameTimePatch(gamedll));
-		//sentry midfunc hook patch here!!!
+		m_patchManager.Register(new SentryThinkDelayPatch(gamedll, GetConfiguredTickInterval(false)));
 		m_patchManager.PatchAll();
 	}
 	catch( PatchException & e)
 	{
+		// Load() failing means Unload() is never called, so drop the hook here or it dangles into a freed DLL.
+		SH_REMOVE_HOOK(IServerGameDLL, GetTickInterval, gamedll, SH_STATIC(GetTickInterval), false);
 		Error("!!!!!\nPatch Failure: %s\n!!!!!\n", e.GetDescription());
 		Error("Failed to process all tickrate_enabler patches, bailing out.\n");
 		return false;

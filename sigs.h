@@ -38,7 +38,9 @@
 /* CTFWeaponBaseGrenadeProj::ResolveFlyCollisionCustom() function finding */
 #define LIN_ResolveFlyCollisionCustom_SYMBOL "_ZN24CTFWeaponBaseGrenadeProj25ResolveFlyCollisionCustomER10CGameTraceR6Vector"
 
-/* TODO: Find sigs for Windows */
+/* TODO: Find sigs for Windows.
+ * The two signatures below are currently byte-identical placeholders, so they resolve to the
+ * same function (FindPattern returns the first match). Each needs its own real signature. */
 #define WIN_VPhysicsUpdate_SIG "\x55\x8B\xEC\x81\xEC\x2A\x2A\x2A\x2A\xA1\x2A\x2A\x2A\x2A\x33\xC5\x89\x45\xFC\x53\x56\x57\x8B\xF9\x8B\x87\x2A\x2A\x2A\x2A\x83"
 #define WIN_VPhysicsUpdate_SIGLEN 31
 
@@ -48,8 +50,24 @@
 /* gpGlobals read offsets into CTFWeaponBaseGrenadeProj::VPhysicsUpdate() and CTFWeaponBaseGrenadeProj::ResolveFlyCollisionCustom()*/
 const int g_FrameTimeReadOffsets[] =
 #if defined (_LINUX)
-	{0x11E, 0x290, 0x339};
+	/* Verified by hand against a production server_srv.so, TF2 PatchVersion=11138802:
+	 *   VPhysicsUpdate            entry 00e13c20, mov eax,[gpGlobals] at 00e13d29 -> +0x109
+	 *   ResolveFlyCollisionCustom entry 00e10b00, loads at 00e10d87 -> +0x287 and 00e10e20 -> +0x320
+	 * All three are 'a1 64 a2 80 01' (mov eax,[0x0180a264]) followed by a read of gpGlobals+0x10 (frametime).
+	 * The previous values {0x11E, 0x290, 0x339} no longer land on those instructions. */
+	{0x109, 0x287, 0x320};
 #elif defined (_WIN32)
-	{0x11E, 0x290, 0x339}; // TODO: Change offset
+	{0x11E, 0x290, 0x339}; // TODO: Change offset (copied from Linux; Windows codegen differs)
 #endif
+
+/* Order: [0] VPhysicsUpdate, [1] and [2] ResolveFlyCollisionCustom */
+const int g_FrameTimeReadCount = sizeof(g_FrameTimeReadOffsets) / sizeof(g_FrameTimeReadOffsets[0]);
+/* CObjectSentrygun::SentryThink() re-arms itself with ThinkSet(curtime + 0.05, ...).
+ * Source rounds that to whole ticks, so the real think period (and with it the sentry fire rate) changes with tickrate.
+ * The delay is added by one 'addsd xmm0, [abs32]' (f2 0f 58 05 <abs32>) whose operand points at the double 0.05.
+ * Verified by hand against TF2 PatchVersion=11138802: SentryThink entry 00cbd5b0, addsd at 00cbd642 -> +0x92. */
+#define LIN_SentryThink_SYMBOL "_ZN16CObjectSentrygun11SentryThinkEv"
+#define LIN_SentryThink_DelayOffset 0x92
+/* TODO: Windows signature and offset for SentryThink */
+
 #endif // _SIGS_H_

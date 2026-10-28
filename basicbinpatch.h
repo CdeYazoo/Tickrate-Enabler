@@ -61,7 +61,7 @@ public:
 
 	~BasicBinPatch()
 	{
-		delete m_pOriginal;
+		delete[] m_pOriginal;
 	}
 
 	void Patch()
@@ -85,6 +85,7 @@ public:
 	{
 		if(!m_bPatched) return;
 		memcpy(m_pTarget, m_pOriginal, m_length);
+		m_bPatched = false;
 	}
 
 private:
@@ -138,6 +139,7 @@ public:
 		if(!m_bPatched) return;
 
 		memcpy(m_pTarget, m_original, LENGTH);
+		m_bPatched = false;
 	}
 
 private:
