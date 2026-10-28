@@ -11,8 +11,14 @@ name: Build Linux plugin (TF2)
 #     and Metamod's core/sourcehook, which newer branches no longer ship.
 #   - Linux only. Windows still needs signatures for server.dll (see sigs.h).
 
+# Releases:
+#   - push a tag like v1.0   -> publishes a versioned release with the plugin attached
+#   - push to the default branch -> refreshes one rolling prerelease called "latest"
+#   - pull requests and other branches only build (artifact, no release)
 on:
   push:
+    branches: ['**']
+    tags: ['v*']
   pull_request:
   workflow_dispatch:
 
@@ -124,3 +130,41 @@ jobs:
           name: tickrate_enabler-tf2-linux-unstripped
           path: debug/
           if-no-files-found: error
+
+  release:
+    needs: build-linux
+    # Never from pull requests. Tags matching v* make a versioned release; the default branch makes the rolling "latest".
+    if: github.event_name != 'pull_request' && (github.ref_type == 'tag' || github.ref_name == github.event.repository.default_branch)
+    runs-on: ubuntu-24.04
+    permissions:
+      contents: write
+    steps:
+      - name: Download the built plugin
+        uses: actions/download-artifact@v4
+        with:
+          name: tickrate_enabler-tf2-linux
+          path: pkg
+
+      - name: Create or update the release
+        env:
+          GH_TOKEN: ${{ github.token }}
+        run: |
+          set -euo pipefail
+          zip_name=tickrate_enabler-tf2-linux.zip
+          (cd pkg && zip -r "../$zip_name" addons)
+          sha256sum "$zip_name" > "$zip_name.sha256"
+          cat "$zip_name.sha256"
+
+          notes="Linux build for TF2 (tested against PatchVersion 11138802). Extract the addons folder into your server's tf folder. Built from commit ${GITHUB_SHA}."
+
+          if [ "$GITHUB_REF_TYPE" = "tag" ]; then
+            gh release create "$GITHUB_REF_NAME" --repo "$GITHUB_REPOSITORY" --verify-tag \
+              --title "$GITHUB_REF_NAME" --notes "$notes" \
+              "$zip_name" "$zip_name.sha256"
+          else
+            # Rolling prerelease: replace the previous one (and its tag) with this build.
+            gh release delete latest --repo "$GITHUB_REPOSITORY" --cleanup-tag --yes || true
+            gh release create latest --repo "$GITHUB_REPOSITORY" --target "$GITHUB_SHA" --prerelease \
+              --title "Latest build (${GITHUB_SHA::7})" --notes "$notes" \
+              "$zip_name" "$zip_name.sha256"
+          fi
