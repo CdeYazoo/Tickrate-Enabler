@@ -1,0 +1,126 @@
+name: Build Linux plugin (TF2)
+
+# Builds tickrate_enabler.so with the project's own AMBuild scripts and uploads it as an artifact.
+# Open the run's page under the "Actions" tab and download "tickrate_enabler-tf2-linux" from "Artifacts".
+#
+# Everything below is pinned to the exact versions this was tested with:
+#   - HL2SDK (tf2 branch) 54a1c6d is the March 2019 snapshot. The tf2 branch had no commits between then and
+#     September 2021, so it is the SDK this project's AMBuildScript was written against. Current HEAD of that
+#     branch does NOT build with this AMBuildScript.
+#   - SourceMod and Metamod:Source 1.11-dev: the AMBuilder file needs SourceMod's public/asm and public/libudis86
+#     and Metamod's core/sourcehook, which newer branches no longer ship.
+#   - Linux only. Windows still needs signatures for server.dll (see sigs.h).
+
+on:
+  push:
+  pull_request:
+  workflow_dispatch:
+
+permissions:
+  contents: read
+
+jobs:
+  build-linux:
+    runs-on: ubuntu-24.04
+    steps:
+      - name: Check out the plugin
+        uses: actions/checkout@v4
+        with:
+          path: src
+
+      - name: Check out HL2SDK (TF2, March 2019)
+        uses: actions/checkout@v4
+        with:
+          repository: alliedmodders/hl2sdk
+          ref: 54a1c6d20323e72437ec2201ae6e48be6c6f483d
+          path: deps/hl2sdk-tf2
+          sparse-checkout: |
+            public
+            game/shared
+            common
+            lib/linux
+
+      - name: Check out SourceMod (1.11-dev)
+        uses: actions/checkout@v4
+        with:
+          repository: alliedmodders/sourcemod
+          ref: f53cb134ef83b580c83e1f4bf35f60d11c4571dd
+          path: deps/sourcemod
+          sparse-checkout: |
+            public
+            core/logic
+
+      - name: Check out Metamod:Source (1.11-dev)
+        uses: actions/checkout@v4
+        with:
+          repository: alliedmodders/metamod-source
+          ref: 7ff2d97bdad1493b809c5ec91bbfc7abc6ae5445
+          path: deps/metamod-source
+          sparse-checkout: |
+            core
+
+      - uses: actions/setup-python@v5
+        with:
+          python-version: '3.12'
+
+      - name: Install build tools (32-bit gcc and AMBuild)
+        run: |
+          sudo apt-get update
+          sudo apt-get install -y gcc-multilib g++-multilib
+          pip install "git+https://github.com/alliedmodders/ambuild@01212cb57c96561f664b6dfb2ee10e66de6f81e4"
+
+      # The project builds with -Wall -Werror, and modern gcc warns about code inside the 2019 SDK headers
+      # (for example -Wclass-memaccess). These wrappers add -Wno-error LAST so warnings stay visible in the log
+      # but no longer fail the build.
+      - name: Create compiler wrappers
+        run: |
+          mkdir -p "$RUNNER_TEMP/wrap"
+          printf '#!/bin/sh\nexec gcc "$@" -Wno-error\n' > "$RUNNER_TEMP/wrap/cc"
+          printf '#!/bin/sh\nexec g++ "$@" -Wno-error\n' > "$RUNNER_TEMP/wrap/c++"
+          chmod +x "$RUNNER_TEMP/wrap/cc" "$RUNNER_TEMP/wrap/c++"
+
+      - name: Configure
+        run: |
+          mkdir objdir
+          cd objdir
+          CC="$RUNNER_TEMP/wrap/cc" CXX="$RUNNER_TEMP/wrap/c++" python ../src/configure.py \
+            --hl2sdk-root="$GITHUB_WORKSPACE/deps" \
+            --sm-path="$GITHUB_WORKSPACE/deps/sourcemod" \
+            --mms-path="$GITHUB_WORKSPACE/deps/metamod-source" \
+            -s tf2 --enable-optimize
+
+      - name: Build
+        working-directory: objdir
+        run: ambuild
+
+      - name: Sanity-check the binary
+        run: |
+          so=objdir/Package-tf2/addons/tickrate_enabler/tickrate_enabler.so
+          file "$so"
+          file "$so" | grep -q "ELF 32-bit"
+          nm -D --defined-only "$so" | grep -q " T CreateInterface"
+          readelf -d "$so" | grep NEEDED
+          ls -la "$so"
+
+      - name: Keep an unstripped copy, then strip the plugin
+        run: |
+          so=objdir/Package-tf2/addons/tickrate_enabler/tickrate_enabler.so
+          mkdir -p debug
+          cp "$so" debug/tickrate_enabler.so.debug
+          strip --strip-unneeded "$so"
+          nm -D --defined-only "$so" | grep -q " T CreateInterface"
+          ls -la "$so"
+
+      - name: Upload the plugin
+        uses: actions/upload-artifact@v4
+        with:
+          name: tickrate_enabler-tf2-linux
+          path: objdir/Package-tf2/
+          if-no-files-found: error
+
+      - name: Upload unstripped copy (for crash analysis)
+        uses: actions/upload-artifact@v4
+        with:
+          name: tickrate_enabler-tf2-linux-unstripped
+          path: debug/
+          if-no-files-found: error
