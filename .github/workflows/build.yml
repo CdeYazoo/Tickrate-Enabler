@@ -9,6 +9,7 @@ name: Build Linux plugin (TF2)
 #     branch does NOT build with this AMBuildScript.
 #   - SourceMod and Metamod:Source 1.11-dev: the AMBuilder file needs SourceMod's public/asm and public/libudis86
 #     and Metamod's core/sourcehook, which newer branches no longer ship.
+#   - Built on Ubuntu 22.04 so the plugin runs on servers with glibc 2.36 or older (the build fails if it would not).
 #   - Linux only. Windows still needs signatures for server.dll (see sigs.h).
 
 # Releases:
@@ -27,7 +28,8 @@ permissions:
 
 jobs:
   build-linux:
-    runs-on: ubuntu-24.04
+    # Ubuntu 22.04 has glibc 2.35. A 24.04 build needs glibc 2.38 and fails to load on older servers.
+    runs-on: ubuntu-22.04
     steps:
       - name: Check out the plugin
         uses: actions/checkout@v4
@@ -107,6 +109,20 @@ jobs:
           nm -D --defined-only "$so" | grep -q " T CreateInterface"
           readelf -d "$so" | grep NEEDED
           ls -la "$so"
+
+      # Fail the build, with a clear message, if the plugin needs a newer glibc than the servers it must run on.
+      - name: Check glibc compatibility
+        env:
+          MAX_GLIBC: '2.36'
+        run: |
+          so=objdir/Package-tf2/addons/tickrate_enabler/tickrate_enabler.so
+          highest=$(objdump -T "$so" | grep -oE 'GLIBC_[0-9.]+' | sed 's/GLIBC_//' | sort -V | tail -n 1)
+          echo "Highest glibc symbol version required: $highest (allowed: $MAX_GLIBC)"
+          if [ "$(printf '%s\n%s\n' "$highest" "$MAX_GLIBC" | sort -V | tail -n 1)" != "$MAX_GLIBC" ]; then
+            echo "::error::The plugin needs glibc $highest but only $MAX_GLIBC or older is allowed. Offending symbols:"
+            objdump -T "$so" | grep "GLIBC_$highest" || true
+            exit 1
+          fi
 
       - name: Keep an unstripped copy, then strip the plugin
         run: |
