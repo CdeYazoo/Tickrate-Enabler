@@ -143,7 +143,10 @@ bool TF2TickRate::Load(	CreateInterfaceFn interfaceFactory, CreateInterfaceFn ga
 
 	try
 	{
-		m_patchManager.Register(new PipeBombFrameTimePatch(gamedll));
+		// -te_nosweep / -te_nopush switch off parts of the grenade patch (for testing which part changes bounce behaviour).
+		const bool patchSweep = !CommandLine()->CheckParm("-te_nosweep");
+		const bool patchPush = !CommandLine()->CheckParm("-te_nopush");
+		m_patchManager.Register(new PipeBombFrameTimePatch(gamedll, patchSweep, patchPush));
 		m_patchManager.Register(new SentryThinkDelayPatch(gamedll, GetConfiguredTickInterval(false)));
 		m_patchManager.PatchAll();
 	}

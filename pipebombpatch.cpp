@@ -46,10 +46,10 @@ struct fakeGlobals {
 fakeGlobals g_FakeGlobals = { {0.0, 0.0, 0.0, 0.0}, 0.015151515 };
 fakeGlobals *gp_FakeGlobals = &g_FakeGlobals;
 
-PipeBombFrameTimePatch::PipeBombFrameTimePatch(IServerGameDLL * gamedll)
+PipeBombFrameTimePatch::PipeBombFrameTimePatch(IServerGameDLL * gamedll, bool patchSweep, bool patchPush)
 	: m_pGlobalsVarAddr(NULL)
 {
-	InitializeBinPatches(gamedll);
+	InitializeBinPatches(gamedll, patchSweep, patchPush);
 }
 
 PipeBombFrameTimePatch::~PipeBombFrameTimePatch()
@@ -67,7 +67,7 @@ void PipeBombFrameTimePatch::Unpatch()
 	m_patches.UnpatchAll();
 }
 
-void PipeBombFrameTimePatch::InitializeBinPatches(IServerGameDLL * gamedll)
+void PipeBombFrameTimePatch::InitializeBinPatches(IServerGameDLL * gamedll, bool patchSweep, bool patchPush)
 {
 #if defined (_LINUX)
 	BYTE * pVPhysicsUpdate = FindSignature(static_cast<void *>(gamedll), LIN_VPhysicsUpdate_SYMBOL);
@@ -95,9 +95,17 @@ void PipeBombFrameTimePatch::InitializeBinPatches(IServerGameDLL * gamedll)
 			pVPhysicsUpdate);
 	}
 	// Read order must match g_FrameTimeReadOffsets in sigs.h
-	FrameTimeOverride(pVPhysicsUpdate, "VPhysicsUpdate", 0);
-	FrameTimeOverride(pResolveFlyCollisionCustom, "ResolveFlyCollisionCustom", 1);
-	FrameTimeOverride(pResolveFlyCollisionCustom, "ResolveFlyCollisionCustom", 2);
+	if(patchSweep)
+	{
+		FrameTimeOverride(pVPhysicsUpdate, "VPhysicsUpdate", 0);
+	}
+	if(patchPush)
+	{
+		FrameTimeOverride(pResolveFlyCollisionCustom, "ResolveFlyCollisionCustom", 1);
+		FrameTimeOverride(pResolveFlyCollisionCustom, "ResolveFlyCollisionCustom", 2);
+	}
+	Msg("Tickrate_Enabler: grenade frametime patch: sweep (VPhysicsUpdate) %s, push (ResolveFlyCollisionCustom) %s\n",
+		patchSweep ? "ON" : "off", patchPush ? "ON" : "off");
 }
 
 static void FormatBytes(char * out, size_t outLen, const BYTE * p, int n)

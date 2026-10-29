@@ -41,12 +41,14 @@
 class PipeBombFrameTimePatch : public ICodePatch
 {
 public:
-	PipeBombFrameTimePatch(IServerGameDLL * gamedll);
+	// patchSweep: the frametime read in VPhysicsUpdate (length of the collision sweep).
+	// patchPush:  the two reads in ResolveFlyCollisionCustom (distance the grenade is pushed after a bounce).
+	PipeBombFrameTimePatch(IServerGameDLL * gamedll, bool patchSweep = true, bool patchPush = true);
 	~PipeBombFrameTimePatch();
 	void Patch();
 	void Unpatch();
 private:
-	void InitializeBinPatches(IServerGameDLL * gamedll);
+	void InitializeBinPatches(IServerGameDLL * gamedll, bool patchSweep, bool patchPush);
 	BYTE * FindSignature(void* gamedll, const char* sig, int len = 0);
 	void FrameTimeOverride(BYTE* pFunction, const char * funcName, int readIndex);
 	PatchManager m_patches;
