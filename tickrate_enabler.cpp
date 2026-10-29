@@ -108,10 +108,24 @@ IVEngineServer *engine = NULL;
 //---------------------------------------------------------------------------------
 bool TF2TickRate::Load(	CreateInterfaceFn interfaceFactory, CreateInterfaceFn gameServerFactory )
 {
-	gamedll = (IServerGameDLL*)gameServerFactory("ServerGameDLL010", NULL);
+	// Valve bumped the game DLL interface from 010 to 011 and 012 in 2022, so a current server no longer offers 010.
+	// Between these versions IServerGameDLL only gained functions at the END of its vtable (GetTickInterval is slot 10
+	// in all of them), so the GetTickInterval hook below is valid for each. Newest first. Do not add a newer version
+	// here without checking that its layout still has GetTickInterval at slot 10.
+	static const char * const kGameDllVersions[] = { "ServerGameDLL012", "ServerGameDLL011", "ServerGameDLL010" };
+	gamedll = NULL;
+	for (size_t i = 0; i < sizeof(kGameDllVersions) / sizeof(kGameDllVersions[0]); i++)
+	{
+		gamedll = (IServerGameDLL*)gameServerFactory(kGameDllVersions[i], NULL);
+		if (gamedll)
+		{
+			Msg("Tickrate_Enabler: Using %s\n", kGameDllVersions[i]);
+			break;
+		}
+	}
 	if (!gamedll)
 	{
-		Warning("Failed to get a pointer on ServerGameDLL.\n");
+		Warning("Failed to get a pointer on ServerGameDLL (tried ServerGameDLL012, 011 and 010).\n");
 		return false;
 	}
 	engine = (IVEngineServer *)interfaceFactory("VEngineServer023", NULL);
@@ -122,8 +136,8 @@ bool TF2TickRate::Load(	CreateInterfaceFn interfaceFactory, CreateInterfaceFn ga
 	}
 
 
-	Msg("Tickrate_Enabler: Found ServerGameDLL at 0x%08x\n", gamedll);
-	Msg("Tickrate_Enabler: Found VEngineServer at 0x%08x\n", engine);
+	Msg("Tickrate_Enabler: Found ServerGameDLL at %p\n", gamedll);
+	Msg("Tickrate_Enabler: Found VEngineServer at %p\n", engine);
 
 	SH_ADD_HOOK(IServerGameDLL, GetTickInterval, gamedll, SH_STATIC(GetTickInterval), false);
 
