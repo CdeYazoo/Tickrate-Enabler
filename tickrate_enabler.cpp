@@ -43,6 +43,7 @@
 
 #include "pipebombpatch.h"
 #include "sentrypatch.h"
+#include "physstep.h"
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
@@ -143,11 +144,26 @@ bool TF2TickRate::Load(	CreateInterfaceFn interfaceFactory, CreateInterfaceFn ga
 
 	try
 	{
-		// -te_nosweep / -te_nopush switch off parts of the grenade patch (for testing which part changes bounce behaviour).
-		const bool patchSweep = !CommandLine()->CheckParm("-te_nosweep");
-		const bool patchPush = !CommandLine()->CheckParm("-te_nopush");
-		m_patchManager.Register(new PipeBombFrameTimePatch(gamedll, patchSweep, patchPush));
+		// The grenade frametime patch is OFF by default. A/B testing at 200 tick showed that pinning these reads made
+		// bounces worse: the two reads in ResolveFlyCollisionCustom ("push") inflated post-bounce hops about 3x, and the
+		// read in VPhysicsUpdate ("sweep") gave occasional huge wall bounces. -te_push and -te_sweep turn the parts
+		// back on for experiments.
+		const bool patchSweep = CommandLine()->CheckParm("-te_sweep") != NULL;
+		const bool patchPush = CommandLine()->CheckParm("-te_push") != NULL;
+		if(patchSweep || patchPush)
+		{
+			m_patchManager.Register(new PipeBombFrameTimePatch(gamedll, patchSweep, patchPush));
+		}
+		else
+		{
+			Msg("Tickrate_Enabler: grenade frametime patch is off (-te_sweep and/or -te_push enable it)\n");
+		}
 		m_patchManager.Register(new SentryThinkDelayPatch(gamedll, GetConfiguredTickInterval(false)));
+		// -te_physstep: give vphysics its vanilla 15ms step instead of the tick interval (experimental, opt-in).
+		if(CommandLine()->CheckParm("-te_physstep"))
+		{
+			m_patchManager.Register(new PhysicsStepPatch(gamedll));
+		}
 		m_patchManager.PatchAll();
 	}
 	catch( PatchException & e)

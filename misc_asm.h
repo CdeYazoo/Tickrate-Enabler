@@ -71,6 +71,8 @@ inline bool mov_to_disp32(BYTE * instr)
 	{
 	case 0xA1: // direct to eax mov
 		return true;
+	case MOV_R32_RM32_OPCODE: // 8B /r: already reads from an immediate address only for ModRM mod=00, rm=101
+		return (instr[1] & 0xC7) == 0x05;
 	default: // unsupported or not mov
 		return false;
 	}
@@ -83,6 +85,8 @@ inline int mov_src_operand_offset(BYTE * instr)
 	{
 	case 0xA1:
 		return 1;
+	case MOV_R32_RM32_OPCODE:
+		return ((instr[1] & 0xC7) == 0x05) ? 2 : 0;
 	default: 
 		return 0;
 	}

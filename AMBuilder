@@ -10,6 +10,7 @@ sourceFiles = [
   'memutils.cpp',
   'pipebombpatch.cpp',
   'sentrypatch.cpp',
+  'physstep.cpp',
   
   os.path.join(Extension.sm_root, 'public', 'asm', 'asm.c'),
   os.path.join(Extension.sm_root, 'public', 'libudis86', 'decode.c'),

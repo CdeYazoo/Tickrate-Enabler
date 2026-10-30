@@ -70,4 +70,13 @@ const int g_FrameTimeReadCount = sizeof(g_FrameTimeReadOffsets) / sizeof(g_Frame
 #define LIN_SentryThink_DelayOffset 0x92
 /* TODO: Windows signature and offset for SentryThink */
 
+/* CPhysicsHook::LevelInitPreEntity() creates the vphysics environment and calls
+ *   physenv->SetSimulationTimestep( gpGlobals->interval_per_tick )
+ * so the physics solver steps in tick-sized increments (5ms at 200 tick, 15ms in vanilla).
+ * Verified by hand against TF2 PatchVersion=11138802: entry 0077b010, 'mov ecx,[gpGlobals]' (8b 0d <abs32>) at 0077b111 -> +0x101,
+ * followed by: 8b 10 / ff 71 1c / 50 / ff 92 98 00 00 00  (mov edx,[eax]; push [ecx+0x1c]; push eax; call [edx+0x98]) */
+#define LIN_PhysicsHook_LevelInitPreEntity_SYMBOL "_ZN12CPhysicsHook18LevelInitPreEntityEv"
+#define LIN_PhysStep_Offset 0x101
+/* TODO: Windows signature and offset for CPhysicsHook::LevelInitPreEntity */
+
 #endif // _SIGS_H_
