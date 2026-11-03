@@ -88,4 +88,11 @@ const int g_FrameTimeReadCount = sizeof(g_FrameTimeReadOffsets) / sizeof(g_Frame
 #define LIN_RescueSpeed_Offset 0x2e
 /* TODO: Windows signature and offset for IVP_Contact_Point::get_rescue_speed_impact */
 
+/* IVP_Contact_Point::get_rot_speed_uncertainty() is added twice into the rescue speed above. For each core it computes
+ *   (1/PSI) * radius * (1 - cos(|w| * 0.005))
+ * with the same 1/PSI read: cvtsd2ss xmm0, qword ptr [edx+0xb8]  (f2 0f 5a 82 b8 00 00 00).
+ * Verified by hand against TF2 PatchVersion=11138802: entry 001081c0, instruction at 00108239 -> +0x79. */
+#define LIN_RotSpeedUncertainty_SYMBOL "_ZN17IVP_Contact_Point25get_rot_speed_uncertaintyEv"
+#define LIN_RotSpeedUncertainty_Offset 0x79
+
 #endif // _SIGS_H_

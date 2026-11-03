@@ -16,10 +16,26 @@ static_assert(sizeof(void *) == 4, "rescuepatch only supports 32-bit x86 (absolu
 // Replaces 1/PSI in get_rescue_speed_impact. The patched instruction embeds this variable's address.
 static double g_RescueInvStep = 1.0 / VANILLA_PHYSICS_TIMESTEP;
 
-// cvtsd2ss xmm2, qword ptr [edx+0xb8]   reads 1/PSI from the environment
-static const BYTE kOriginal[8] = { 0xF2, 0x0F, 0x5A, 0x92, 0xB8, 0x00, 0x00, 0x00 };
-// cvtsd2ss xmm2, qword ptr [abs32]      same length and register; the 4 address bytes follow
-static const BYTE kReplacementHead[4] = { 0xF2, 0x0F, 0x5A, 0x15 };
+// Every site is a 'cvtsd2ss xmm, qword ptr [reg+0xb8]' (8 bytes) that reads 1/PSI from the environment. It is replaced by
+// 'cvtsd2ss xmm, qword ptr [abs32]' (same length, same register) pointing at g_RescueInvStep.
+struct PatchSite
+{
+	const char * name;
+	const char * symbol;
+	int offset;
+	BYTE original[8];
+	BYTE replacementHead[4];
+};
+
+static const PatchSite kSites[] =
+{
+	{ "get_rescue_speed_impact", LIN_RescueSpeed_SYMBOL, LIN_RescueSpeed_Offset,
+	  { 0xF2, 0x0F, 0x5A, 0x92, 0xB8, 0x00, 0x00, 0x00 },   // cvtsd2ss xmm2, [edx+0xb8]
+	  { 0xF2, 0x0F, 0x5A, 0x15 } },                          // cvtsd2ss xmm2, [abs32]
+	{ "get_rot_speed_uncertainty", LIN_RotSpeedUncertainty_SYMBOL, LIN_RotSpeedUncertainty_Offset,
+	  { 0xF2, 0x0F, 0x5A, 0x82, 0xB8, 0x00, 0x00, 0x00 },   // cvtsd2ss xmm0, [edx+0xb8]
+	  { 0xF2, 0x0F, 0x5A, 0x05 } }                           // cvtsd2ss xmm0, [abs32]
+};
 
 #if defined (_LINUX)
 struct ModuleSearch
@@ -57,63 +73,73 @@ void * FindVPhysicsAnchor()
 }
 
 RescueSpeedPatch::RescueSpeedPatch(void * vphysicsAnchor, float timestep)
-	: m_pPatch(NULL)
 {
+	for(int i = 0; i < SITE_COUNT; i++) m_pPatches[i] = NULL;
 #if defined (_LINUX)
 	if(!vphysicsAnchor)
 	{
 		throw PatchException("Rescue speed: couldn't find the loaded vphysics library (vphysics_srv.so).");
 	}
-	BYTE * pFunction = (BYTE *)g_MemUtils.SimpleResolve(vphysicsAnchor, LIN_RescueSpeed_SYMBOL);
-	const int funcOffset = LIN_RescueSpeed_Offset;
 #else
-	BYTE * pFunction = NULL;
-	const int funcOffset = 0;
-	throw PatchException("The IVP_Contact_Point::get_rescue_speed_impact() patch has no Windows signature yet (see sigs.h).");
+	throw PatchException("The vphysics rescue speed patch has no Windows signatures yet (see sigs.h).");
 #endif
-	DevMsg("get_rescue_speed_impact at %p\n", pFunction);
-	if(!pFunction)
-	{
-		throw PatchException("Rescue speed: couldn't find IVP_Contact_Point::get_rescue_speed_impact() in vphysics.");
-	}
 
-	BYTE * pTarget = pFunction + funcOffset;
-	if(memcmp(pTarget, kOriginal, sizeof(kOriginal)) != 0)
+	// First check every site, so a mismatch anywhere means nothing gets patched.
+	BYTE * targets[SITE_COUNT];
+	for(int i = 0; i < SITE_COUNT; i++)
 	{
-		char found[sizeof(kOriginal) * 3 + 1];
-		size_t used = 0;
-		found[0] = '\0';
-		for(size_t i = 0; i < sizeof(kOriginal); i++)
-			used += snprintf(found + used, sizeof(found) - used, "%s%02x", i ? " " : "", pTarget[i]);
-		throw PatchException::Format(
-			"Rescue speed: unexpected instruction at get_rescue_speed_impact+0x%x (function at %p, target %p). "
-			"Expected 'cvtsd2ss xmm2,[edx+0xb8]' (f2 0f 5a 92 b8 00 00 00) but found bytes: %s. "
-			"vphysics was probably updated; re-derive LIN_RescueSpeed_Offset in sigs.h.",
-			funcOffset, pFunction, pTarget, found);
+		const PatchSite & site = kSites[i];
+		BYTE * pFunction = (BYTE *)g_MemUtils.SimpleResolve(vphysicsAnchor, site.symbol);
+		DevMsg("%s at %p\n", site.name, pFunction);
+		if(!pFunction)
+		{
+			throw PatchException::Format("Rescue speed: couldn't find IVP_Contact_Point::%s() in vphysics.", site.name);
+		}
+		BYTE * pTarget = pFunction + site.offset;
+		if(memcmp(pTarget, site.original, sizeof(site.original)) != 0)
+		{
+			char found[sizeof(site.original) * 3 + 1], expected[sizeof(site.original) * 3 + 1];
+			size_t usedFound = 0, usedExpected = 0;
+			found[0] = expected[0] = '\0';
+			for(size_t j = 0; j < sizeof(site.original); j++)
+			{
+				usedFound += snprintf(found + usedFound, sizeof(found) - usedFound, "%s%02x", j ? " " : "", pTarget[j]);
+				usedExpected += snprintf(expected + usedExpected, sizeof(expected) - usedExpected, "%s%02x", j ? " " : "", site.original[j]);
+			}
+			throw PatchException::Format(
+				"Rescue speed: unexpected instruction at %s+0x%x (function at %p, target %p). "
+				"Expected 'cvtsd2ss xmm,[reg+0xb8]' (%s) but found bytes: %s. "
+				"vphysics was probably updated; re-derive the offsets in sigs.h.",
+				site.name, site.offset, pFunction, pTarget, expected, found);
+		}
+		targets[i] = pTarget;
 	}
 
 	g_RescueInvStep = 1.0 / (double)timestep;
 
-	BYTE instr_buf[sizeof(kOriginal)];
-	memcpy(instr_buf, kReplacementHead, sizeof(kReplacementHead));
 	const double * pNewConst = &g_RescueInvStep;
-	memcpy(instr_buf + sizeof(kReplacementHead), &pNewConst, sizeof(pNewConst));
-	m_pPatch = new BasicStaticBinPatch<8>(pTarget, instr_buf);
+	for(int i = 0; i < SITE_COUNT; i++)
+	{
+		BYTE instr_buf[sizeof(kSites[i].original)];
+		memcpy(instr_buf, kSites[i].replacementHead, sizeof(kSites[i].replacementHead));
+		memcpy(instr_buf + sizeof(kSites[i].replacementHead), &pNewConst, sizeof(pNewConst));
+		m_pPatches[i] = new BasicStaticBinPatch<8>(targets[i], instr_buf);
+	}
 
-	Msg("Tickrate_Enabler: physics rescue speed now uses a %.4fs step (the solver keeps its own step)\n", timestep);
+	Msg("Tickrate_Enabler: physics rescue speed (2 reads) now uses a %.4fs step (the solver keeps its own step)\n", timestep);
 }
 
 RescueSpeedPatch::~RescueSpeedPatch()
 {
-	delete m_pPatch;
+	for(int i = 0; i < SITE_COUNT; i++) delete m_pPatches[i];
 }
 
 void RescueSpeedPatch::Patch()
 {
-	if(m_pPatch) m_pPatch->Patch();
+	for(int i = 0; i < SITE_COUNT; i++) if(m_pPatches[i]) m_pPatches[i]->Patch();
 }
 
 void RescueSpeedPatch::Unpatch()
 {
-	if(m_pPatch) m_pPatch->Unpatch();
+	for(int i = 0; i < SITE_COUNT; i++) if(m_pPatches[i]) m_pPatches[i]->Unpatch();
 }

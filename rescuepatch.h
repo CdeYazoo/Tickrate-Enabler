@@ -11,8 +11,9 @@
 // library is not loaded. It is only used to find the library for symbol lookups.
 void * FindVPhysicsAnchor();
 
-// Makes vphysics' penetration "rescue" speed (IVP_Contact_Point::get_rescue_speed_impact) divide the overlap by the vanilla
-// 15ms step instead of the real physics step. The solver itself keeps stepping at the tick interval.
+// Makes vphysics' contact "rescue" speed use the vanilla 15ms step instead of the real physics step, in the two places
+// where it divides by the step: IVP_Contact_Point::get_rescue_speed_impact (penetration depth) and
+// IVP_Contact_Point::get_rot_speed_uncertainty (rotation). The solver itself keeps stepping at the tick interval.
 // Opt-in (-te_rescue [seconds]).
 class RescueSpeedPatch : public ICodePatch
 {
@@ -22,7 +23,8 @@ public:
 	void Patch();
 	void Unpatch();
 private:
-	BasicStaticBinPatch<8> * m_pPatch;
+	enum { SITE_COUNT = 2 };
+	BasicStaticBinPatch<8> * m_pPatches[SITE_COUNT];
 };
 
 #endif
