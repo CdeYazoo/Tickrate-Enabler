@@ -79,4 +79,13 @@ const int g_FrameTimeReadCount = sizeof(g_FrameTimeReadOffsets) / sizeof(g_Frame
 #define LIN_PhysStep_Offset 0x101
 /* TODO: Windows signature and offset for CPhysicsHook::LevelInitPreEntity */
 
+/* IVP_Contact_Point::get_rescue_speed_impact() (in vphysics_srv.so, not the game DLL) turns a penetration depth into a
+ * separation speed: 2 * (rot_speed_uncertainty + (min_dist - dist) / PSI). The 1/PSI is read by one instruction,
+ *   cvtsd2ss xmm2, qword ptr [edx+0xb8]   (f2 0f 5a 92 b8 00 00 00)
+ * so at a 5ms step the same overlap is pushed apart 3x as hard as at vanilla's 15ms.
+ * Verified by hand against TF2 PatchVersion=11138802: entry 001082c0, instruction at 001082ee -> +0x2e. */
+#define LIN_RescueSpeed_SYMBOL "_ZN17IVP_Contact_Point23get_rescue_speed_impactEP15IVP_Environment"
+#define LIN_RescueSpeed_Offset 0x2e
+/* TODO: Windows signature and offset for IVP_Contact_Point::get_rescue_speed_impact */
+
 #endif // _SIGS_H_

@@ -10,12 +10,12 @@
 // The vphysics simulation step vanilla TF2 uses at its default tickrate (200/3 Hz), in seconds.
 #define VANILLA_PHYSICS_TIMESTEP 0.015f
 
-// Makes CPhysicsHook::LevelInitPreEntity() give the physics solver the vanilla 15ms step instead of the tick interval.
-// Opt-in (-te_physstep). Takes effect the next time a level loads.
+// Makes CPhysicsHook::LevelInitPreEntity() give the physics solver a fixed step (default: the vanilla 15ms) instead of the
+// tick interval. Opt-in (-te_physstep [seconds]). Takes effect the next time a level loads.
 class PhysicsStepPatch : public ICodePatch
 {
 public:
-	PhysicsStepPatch(IServerGameDLL * gamedll);
+	PhysicsStepPatch(IServerGameDLL * gamedll, float timestep = VANILLA_PHYSICS_TIMESTEP);
 	~PhysicsStepPatch();
 	void Patch();
 	void Unpatch();

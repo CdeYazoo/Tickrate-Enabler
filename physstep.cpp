@@ -36,9 +36,10 @@ static void HexBytes(char * out, size_t outLen, const BYTE * p, int n)
 		used += snprintf(out + used, outLen - used, "%s%02x", i ? " " : "", p[i]);
 }
 
-PhysicsStepPatch::PhysicsStepPatch(IServerGameDLL * gamedll)
+PhysicsStepPatch::PhysicsStepPatch(IServerGameDLL * gamedll, float timestep)
 	: m_pPatch(NULL)
 {
+	g_PhysFakeGlobals.interval_per_tick = timestep;
 #if defined (_LINUX)
 	BYTE * pFunction = (BYTE *)g_MemUtils.SimpleResolve(static_cast<void *>(gamedll), LIN_PhysicsHook_LevelInitPreEntity_SYMBOL);
 	const int funcOffset = LIN_PhysStep_Offset;

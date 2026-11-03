@@ -44,6 +44,7 @@
 #include "pipebombpatch.h"
 #include "sentrypatch.h"
 #include "physstep.h"
+#include "rescuepatch.h"
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
@@ -162,7 +163,26 @@ bool TF2TickRate::Load(	CreateInterfaceFn interfaceFactory, CreateInterfaceFn ga
 		// -te_physstep: give vphysics its vanilla 15ms step instead of the tick interval (experimental, opt-in).
 		if(CommandLine()->CheckParm("-te_physstep"))
 		{
-			m_patchManager.Register(new PhysicsStepPatch(gamedll));
+			// Optional value in seconds, e.g. -te_physstep 0.01 for 10ms. Without one: the vanilla 15ms.
+			float physStep = CommandLine()->ParmValue("-te_physstep", VANILLA_PHYSICS_TIMESTEP);
+			if(!(physStep > 0.001f && physStep <= 0.05f))
+			{
+				Warning("Tickrate_Enabler: ignoring -te_physstep %f (must be between 0.001 and 0.05 seconds), using %f\n", physStep, VANILLA_PHYSICS_TIMESTEP);
+				physStep = VANILLA_PHYSICS_TIMESTEP;
+			}
+			m_patchManager.Register(new PhysicsStepPatch(gamedll, physStep));
+		}
+		// -te_rescue [seconds]: make vphysics' penetration "rescue" speed use the vanilla step (default 15ms) while the
+		// solver keeps stepping at the tick interval (experimental, opt-in; patches vphysics, not the game DLL).
+		if(CommandLine()->CheckParm("-te_rescue"))
+		{
+			float rescueStep = CommandLine()->ParmValue("-te_rescue", VANILLA_PHYSICS_TIMESTEP);
+			if(!(rescueStep > 0.001f && rescueStep <= 0.05f))
+			{
+				Warning("Tickrate_Enabler: ignoring -te_rescue %f (must be between 0.001 and 0.05 seconds), using %f\n", rescueStep, VANILLA_PHYSICS_TIMESTEP);
+				rescueStep = VANILLA_PHYSICS_TIMESTEP;
+			}
+			m_patchManager.Register(new RescueSpeedPatch(FindVPhysicsAnchor(), rescueStep));
 		}
 		m_patchManager.PatchAll();
 	}
