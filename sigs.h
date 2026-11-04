@@ -95,4 +95,22 @@ const int g_FrameTimeReadCount = sizeof(g_FrameTimeReadOffsets) / sizeof(g_Frame
 #define LIN_RotSpeedUncertainty_SYMBOL "_ZN17IVP_Contact_Point25get_rot_speed_uncertaintyEv"
 #define LIN_RotSpeedUncertainty_Offset 0x79
 
+/* IVP_Impact_Solver_Long_Term::do_impact_of_two_objects() is the two-object collision entry point. It contains an inlined copy
+ * of the rescue speed formula above (overlap * 1/PSI), read with: cvtsd2ss xmm2, qword ptr [eax+0xb8]  (f2 0f 5a 90 b8 00 00 00).
+ * Verified by hand against TF2 PatchVersion=11138802: entry 00108ca0, instruction at 00108d8c -> +0xEC.
+ * (There is also a .cold clone of this function; symbol lookup is an exact match, so it is not confused with it.) */
+#define LIN_DoImpactTwoObjects_SYMBOL "_ZN27IVP_Impact_Solver_Long_Term24do_impact_of_two_objectsEP11IVP_MindistP15IVP_Real_ObjectS3_"
+#define LIN_DoImpactTwoObjects_Offset 0xEC
+
+/* CPhysicsEnvironment::SetPerformanceSettings() (vphysics_srv.so) stores the angular speed cap as an angle per step:
+ *   limits[+0x10] = PSI * maxAngularVelocity * (pi/180)
+ * reading the step with  cvtsd2ss xmm0, qword ptr [ebx+0xb0]  (f2 0f 5a 83 b0 00 00 00). Everything that uses the cap multiplies it by
+ * 1/PSI again, but CPhysicsHook::LevelInitPreEntity calls this BEFORE SetSimulationTimestep, so the PSI stored here is IVP's
+ * default and not the step that is really used. At a 5ms step that makes the speed cap about 3x too loose.
+ * Verified by hand against TF2 PatchVersion=11138802: entry 0004e1d0, instruction at 0004e220 -> +0x50, followed by
+ *   f3 0f 59 40 0c   mulss xmm0,[eax+0xc]       maxAngularVelocity
+ *   f3 0f 59 05 ..   mulss xmm0,[pi/180]        (3C8EFA35h) */
+#define LIN_PerfSettings_SYMBOL "_ZN19CPhysicsEnvironment22SetPerformanceSettingsEPK27physics_performanceparams_t"
+#define LIN_PerfSettings_Offset 0x50
+
 #endif // _SIGS_H_

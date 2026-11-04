@@ -34,7 +34,10 @@ static const PatchSite kSites[] =
 	  { 0xF2, 0x0F, 0x5A, 0x15 } },                          // cvtsd2ss xmm2, [abs32]
 	{ "get_rot_speed_uncertainty", LIN_RotSpeedUncertainty_SYMBOL, LIN_RotSpeedUncertainty_Offset,
 	  { 0xF2, 0x0F, 0x5A, 0x82, 0xB8, 0x00, 0x00, 0x00 },   // cvtsd2ss xmm0, [edx+0xb8]
-	  { 0xF2, 0x0F, 0x5A, 0x05 } }                           // cvtsd2ss xmm0, [abs32]
+	  { 0xF2, 0x0F, 0x5A, 0x05 } },                          // cvtsd2ss xmm0, [abs32]
+	{ "do_impact_of_two_objects", LIN_DoImpactTwoObjects_SYMBOL, LIN_DoImpactTwoObjects_Offset,
+	  { 0xF2, 0x0F, 0x5A, 0x90, 0xB8, 0x00, 0x00, 0x00 },   // cvtsd2ss xmm2, [eax+0xb8]
+	  { 0xF2, 0x0F, 0x5A, 0x15 } }                           // cvtsd2ss xmm2, [abs32]
 };
 
 #if defined (_LINUX)
@@ -93,7 +96,7 @@ RescueSpeedPatch::RescueSpeedPatch(void * vphysicsAnchor, float timestep)
 		DevMsg("%s at %p\n", site.name, pFunction);
 		if(!pFunction)
 		{
-			throw PatchException::Format("Rescue speed: couldn't find IVP_Contact_Point::%s() in vphysics.", site.name);
+			throw PatchException::Format("Rescue speed: couldn't find %s() in vphysics.", site.name);
 		}
 		BYTE * pTarget = pFunction + site.offset;
 		if(memcmp(pTarget, site.original, sizeof(site.original)) != 0)
@@ -126,7 +129,7 @@ RescueSpeedPatch::RescueSpeedPatch(void * vphysicsAnchor, float timestep)
 		m_pPatches[i] = new BasicStaticBinPatch<8>(targets[i], instr_buf);
 	}
 
-	Msg("Tickrate_Enabler: physics rescue speed (2 reads) now uses a %.4fs step (the solver keeps its own step)\n", timestep);
+	Msg("Tickrate_Enabler: physics rescue speed (3 reads) now uses a %.4fs step (the solver keeps its own step)\n", timestep);
 }
 
 RescueSpeedPatch::~RescueSpeedPatch()

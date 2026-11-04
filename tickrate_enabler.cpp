@@ -45,6 +45,7 @@
 #include "sentrypatch.h"
 #include "physstep.h"
 #include "rescuepatch.h"
+#include "limitspatch.h"
 // memdbgon must be the last include file in a .cpp file!!!
 #include "tier0/memdbgon.h"
 
@@ -160,6 +161,8 @@ bool TF2TickRate::Load(	CreateInterfaceFn interfaceFactory, CreateInterfaceFn ga
 			Msg("Tickrate_Enabler: grenade frametime patch is off (-te_sweep and/or -te_push enable it)\n");
 		}
 		m_patchManager.Register(new SentryThinkDelayPatch(gamedll, GetConfiguredTickInterval(false)));
+		// The step the physics solver will really run at: the tick interval, unless -te_physstep pins it.
+		float solverStep = GetConfiguredTickInterval(false);
 		// -te_physstep: give vphysics its vanilla 15ms step instead of the tick interval (experimental, opt-in).
 		if(CommandLine()->CheckParm("-te_physstep"))
 		{
@@ -171,6 +174,7 @@ bool TF2TickRate::Load(	CreateInterfaceFn interfaceFactory, CreateInterfaceFn ga
 				physStep = VANILLA_PHYSICS_TIMESTEP;
 			}
 			m_patchManager.Register(new PhysicsStepPatch(gamedll, physStep));
+			solverStep = physStep;
 		}
 		// -te_rescue [seconds]: make vphysics' penetration "rescue" speed use the vanilla step (default 15ms) while the
 		// solver keeps stepping at the tick interval (experimental, opt-in; patches vphysics, not the game DLL).
@@ -183,6 +187,18 @@ bool TF2TickRate::Load(	CreateInterfaceFn interfaceFactory, CreateInterfaceFn ga
 				rescueStep = VANILLA_PHYSICS_TIMESTEP;
 			}
 			m_patchManager.Register(new RescueSpeedPatch(FindVPhysicsAnchor(), rescueStep));
+		}
+		// -te_limits [seconds]: make vphysics compute its angular speed cap with the step the solver really uses
+		// (experimental, opt-in; patches vphysics, not the game DLL).
+		if(CommandLine()->CheckParm("-te_limits"))
+		{
+			float limitStep = CommandLine()->ParmValue("-te_limits", solverStep);
+			if(!(limitStep > 0.001f && limitStep <= 0.05f))
+			{
+				Warning("Tickrate_Enabler: ignoring -te_limits %f (must be between 0.001 and 0.05 seconds), using %f\n", limitStep, solverStep);
+				limitStep = solverStep;
+			}
+			m_patchManager.Register(new AngularLimitPatch(FindVPhysicsAnchor(), limitStep));
 		}
 		m_patchManager.PatchAll();
 	}
