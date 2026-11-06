@@ -9,7 +9,7 @@
 // vphysics stores its angular speed cap as (step * maxAngularVelocity), but SetPerformanceSettings runs before the step is set,
 // so the cap ends up scaled for IVP's default step and not the real one. This patch makes that one calculation use the step the
 // solver really runs at, so the cap comes out as exactly maxAngularVelocity at any tickrate.
-// Opt-in (-te_limits [seconds]); by default the step is the tick interval, or the -te_physstep value when that is on.
+// Part of the default physics fix (see physicsfix.h). The step is the tick interval the server runs at.
 class AngularLimitPatch : public ICodePatch
 {
 public:

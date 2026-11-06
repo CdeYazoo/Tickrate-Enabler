@@ -5,7 +5,9 @@
 #include "codepatch/icodepatch.h"
 #include "basicbinpatch.h"
 #include "sigs.h"
-#include "physstep.h" // VANILLA_PHYSICS_TIMESTEP
+
+// The vphysics simulation step vanilla TF2 uses at its default tickrate (200/3 Hz), in seconds.
+#define VANILLA_PHYSICS_TIMESTEP 0.015f
 
 // Returns the address of a function inside the already-loaded vphysics library (its CreateInterface), or NULL if that
 // library is not loaded. It is only used to find the library for symbol lookups.
@@ -15,7 +17,7 @@ void * FindVPhysicsAnchor();
 // where it divides by the step: IVP_Contact_Point::get_rescue_speed_impact (penetration depth),
 // IVP_Contact_Point::get_rot_speed_uncertainty (rotation) and the inlined copy of the depth formula in
 // IVP_Impact_Solver_Long_Term::do_impact_of_two_objects. The solver itself keeps stepping at the tick interval.
-// Opt-in (-te_rescue [seconds]).
+// Part of the default physics fix (see physicsfix.h).
 class RescueSpeedPatch : public ICodePatch
 {
 public:

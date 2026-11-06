@@ -8,11 +8,10 @@ sourceFiles = [
   'codepatch/patchmanager.cpp',
   'tickrate_enabler.cpp', 
   'memutils.cpp',
-  'pipebombpatch.cpp',
   'sentrypatch.cpp',
-  'physstep.cpp',
   'rescuepatch.cpp',
   'limitspatch.cpp',
+  'physicsfix.cpp',
   
   os.path.join(Extension.sm_root, 'public', 'asm', 'asm.c'),
   os.path.join(Extension.sm_root, 'public', 'libudis86', 'decode.c'),
