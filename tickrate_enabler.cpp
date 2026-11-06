@@ -156,6 +156,7 @@ bool TF2TickRate::Load(	CreateInterfaceFn interfaceFactory, CreateInterfaceFn ga
 		{
 			RegisterPhysicsFix(m_patchManager, FindVPhysicsAnchor(), GetConfiguredTickInterval(false));
 		}
+		m_patchManager.PatchAll();
 	}
 	catch( PatchException & e)
 	{
